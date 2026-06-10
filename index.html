@@ -525,8 +525,6 @@ function attachMonthEvents(m) {
         }
         if (orig==="infinitepay"||orig==="itau"||orig==="dinheiro") {
           data[m][key].push({name,value:val,date,conta:orig});
-          if(!data._valores) data._valores={};
-          data._valores[orig]=(+data._valores[orig]||0)-val;
           ni.value=""; vi.value=""; if(origSel){origSel.value="normal";origSel.className="owner-select owner-none ainp";origSel.style.width="auto";origSel.style.padding="8px 10px";}
           scheduleSave(); render(m); return;
         }
@@ -763,29 +761,37 @@ function getSaldoGeral() {
 }
 
 function renderValores() {
-  if(!data._valores) data._valores={};
-  const v=data._valores;
-  const ip=+v.infinitepay||0,it=+v.itau||0,din=+v.dinheiro||0;
+  // Calcula saldo por conta a partir dos lançamentos
+  const saldos = {infinitepay:0, itau:0, dinheiro:0};
+  MONTHS.forEach(m=>{
+    if(!data[m]) return;
+    // Entradas: soma todas sem filtro de conta (entram no geral)
+    // Saídas: debita da conta correspondente se tiver origem
+    data[m].s.forEach(x=>{
+      if(x.reimb) return; // reembolso não afeta saldos de conta
+      if(x.conta && saldos[x.conta]!==undefined) saldos[x.conta]-=(+x.value||0);
+    });
+    // Entradas vinculadas a conta (se houver campo conta nas entradas)
+    data[m].e.forEach(x=>{
+      if(x.conta && saldos[x.conta]!==undefined) saldos[x.conta]+=(+x.value||0);
+    });
+  });
+  const ip=saldos.infinitepay, it=saldos.itau, din=saldos.dinheiro;
   const geral=getSaldoGeral();
   const geralFmt=new Intl.NumberFormat("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2}).format(geral);
-  const tot=ip+it+din;
+  const fmtSaldo=v=>new Intl.NumberFormat("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2}).format(v);
+  const cardColor=v=>v>=0?"var(--g600)":"var(--danger)";
   document.getElementById("main").innerHTML =
-    "<div class=\"anim\"><div class=\"ptitle\" style=\"color:var(--g600)\">&#127970; Valores</div><div class=\"phint\">Saldos atuais por fonte \u00b7 Geral calculado automaticamente</div></div>" +
+    "<div class=\"anim\"><div class=\"ptitle\" style=\"color:var(--g600)\">&#127970; Valores</div><div class=\"phint\">Saldos calculados automaticamente a partir dos lan\u00e7amentos</div></div>" +
     "<div class=\"anim a1\">" +
-      "<div class=\"val-card\"><div class=\"val-card-left\"><div class=\"val-card-icon\" style=\"background:#F5F3FF\">&#128179;</div><div><div class=\"val-card-name\">InfinitePay</div><div class=\"val-card-sub\">Maquininha / recebimentos</div></div></div><div style=\"display:flex;align-items:center;gap:8px\"><span style=\"font-size:13px;color:var(--n400)\">R$</span><input class=\"val-inp\" type=\"number\" id=\"val-infinitepay\" value=\"" + (ip||"") + "\" placeholder=\"0,00\" min=\"0\" step=\"0.01\"></div></div>" +
-      "<div class=\"val-card\"><div class=\"val-card-left\"><div class=\"val-card-icon\" style=\"background:#FFF7ED\">&#127970;</div><div><div class=\"val-card-name\">Ita\u00fa (Davi)</div><div class=\"val-card-sub\">Conta corrente Davi</div></div></div><div style=\"display:flex;align-items:center;gap:8px\"><span style=\"font-size:13px;color:var(--n400)\">R$</span><input class=\"val-inp\" type=\"number\" id=\"val-itau\" value=\"" + (it||"") + "\" placeholder=\"0,00\" min=\"0\" step=\"0.01\"></div></div>" +
-      "<div class=\"val-card\"><div class=\"val-card-left\"><div class=\"val-card-icon\" style=\"background:#F0FDF4\">&#128181;</div><div><div class=\"val-card-name\">Dinheiro</div><div class=\"val-card-sub\">Caixa f\u00edsico</div></div></div><div style=\"display:flex;align-items:center;gap:8px\"><span style=\"font-size:13px;color:var(--n400)\">R$</span><input class=\"val-inp\" type=\"number\" id=\"val-dinheiro\" value=\"" + (din||"") + "\" placeholder=\"0,00\" min=\"0\" step=\"0.01\"></div></div>" +
-      "<div class=\"val-card val-card-geral\"><div class=\"val-card-left\"><div class=\"val-card-icon\" style=\"background:rgba(255,255,255,.15)\">&#127970;</div><div><div class=\"val-card-name val-card-name-geral\">Geral</div><div class=\"val-card-sub val-card-sub-geral\">Saldo total: entradas \u2212 sa\u00eddas</div></div></div><div style=\"display:flex;align-items:center;gap:8px\"><span style=\"font-size:13px;color:var(--g200)\">R$</span><input class=\"val-inp val-inp-geral\" type=\"text\" value=\"" + geralFmt + "\" readonly></div></div>" +
+      "<div class=\"val-card\"><div class=\"val-card-left\"><div class=\"val-card-icon\" style=\"background:#F5F3FF\">&#128179;</div><div><div class=\"val-card-name\">InfinitePay</div><div class=\"val-card-sub\">Movimenta\u00e7\u00f5es vinculadas</div></div></div><div style=\"display:flex;align-items:center;gap:8px\"><span style=\"font-size:13px;color:var(--n400)\">R$</span><span class=\"val-display\" style=\"color:"+cardColor(ip)+";font-size:18px;font-weight:600\">"+fmtSaldo(ip)+"</span></div></div>" +
+      "<div class=\"val-card\"><div class=\"val-card-left\"><div class=\"val-card-icon\" style=\"background:#FFF7ED\">&#127970;</div><div><div class=\"val-card-name\">Ita\u00fa (Davi)</div><div class=\"val-card-sub\">Movimenta\u00e7\u00f5es vinculadas</div></div></div><div style=\"display:flex;align-items:center;gap:8px\"><span style=\"font-size:13px;color:var(--n400)\">R$</span><span class=\"val-display\" style=\"color:"+cardColor(it)+";font-size:18px;font-weight:600\">"+fmtSaldo(it)+"</span></div></div>" +
+      "<div class=\"val-card\"><div class=\"val-card-left\"><div class=\"val-card-icon\" style=\"background:#F0FDF4\">&#128181;</div><div><div class=\"val-card-name\">Dinheiro</div><div class=\"val-card-sub\">Movimenta\u00e7\u00f5es vinculadas</div></div></div><div style=\"display:flex;align-items:center;gap:8px\"><span style=\"font-size:13px;color:var(--n400)\">R$</span><span class=\"val-display\" style=\"color:"+cardColor(din)+";font-size:18px;font-weight:600\">"+fmtSaldo(din)+"</span></div></div>" +
+      "<div class=\"val-card val-card-geral\"><div class=\"val-card-left\"><div class=\"val-card-icon\" style=\"background:rgba(255,255,255,.15)\">&#127970;</div><div><div class=\"val-card-name val-card-name-geral\">Geral</div><div class=\"val-card-sub val-card-sub-geral\">Saldo total: entradas \u2212 sa\u00eddas</div></div></div><div style=\"display:flex;align-items:center;gap:8px\"><span style=\"font-size:13px;color:var(--g200)\">R$</span><span class=\"val-inp val-inp-geral\" style=\"background:transparent;border:none;font-size:18px;font-weight:600;color:var(--g200)\">"+geralFmt+"</span></div></div>" +
     "</div>" +
-    "<div style=\"display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-top:16px\" class=\"anim a3\">" +
-      "<div style=\"font-size:13px;color:var(--n400)\">Total manual: <strong style=\"color:var(--n800)\">" + brl(tot) + "</strong></div>" +
-      "<button class=\"val-save-btn\" id=\"vsave\">&#128190; Salvar valores</button>" +
+    "<div style=\"margin-top:16px;padding:12px 20px;background:var(--n50);border-radius:var(--rlg);font-size:13px;color:var(--n400)\" class=\"anim a3\">" +
+      "&#9432; Os saldos refletem as sa\u00eddas com origem definida. Entradas sem conta vinculada aparecem apenas no <strong style=\"color:var(--n600)\">Geral</strong>." +
     "</div>";
-  document.getElementById("vsave").addEventListener("click",()=>{
-    if(!data._valores) data._valores={};
-    ["infinitepay","itau","dinheiro"].forEach(k=>{ const el=document.getElementById("val-"+k); if(el) data._valores[k]=parseFloat(el.value.replace(",","."))||0; });
-    scheduleSave(); renderValores();
-  });
 }
 </script>
 </body>
