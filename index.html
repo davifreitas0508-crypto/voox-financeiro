@@ -122,6 +122,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--n50);color:var(--n900);mi
 .orig-infinitepay{background:#F5F3FF;border-color:#DDD6FE;color:#7C3AED}
 .orig-itau{background:#FFF7ED;border-color:#FED7AA;color:#C2410C}
 .orig-dinheiro{background:#F0FDF4;border-color:#BBF7D0;color:#15803D}
+.orig-badge{font-size:10px;border-radius:4px;padding:2px 6px;margin-left:4px;display:inline-block}
 
 .invest-summary{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px}
 .invest-owner-card{flex:1;min-width:140px;background:#fff;border:1px solid var(--n200);border-radius:var(--rlg);padding:16px;position:relative;overflow:hidden}
@@ -186,9 +187,48 @@ input[type='date'].ainp{color:var(--n900);font-family:'DM Sans',sans-serif}
   .val-card{flex-direction:column;align-items:flex-start}
   .val-inp{width:100%}
 }
+/* Modal de edição */
+#edit-modal{display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.45);align-items:center;justify-content:center}
+#edit-modal.open{display:flex}
+#edit-modal-box{background:#fff;border-radius:var(--rxl);padding:24px;width:90%;max-width:420px;box-shadow:0 8px 32px rgba(0,0,0,.18)}
+#edit-modal-box h3{font-size:15px;font-weight:600;margin-bottom:18px;color:var(--n800)}
+.edit-field{margin-bottom:14px}
+.edit-field label{display:block;font-size:12px;color:var(--n400);margin-bottom:4px;font-weight:500}
+.edit-field input,.edit-field select{width:100%;padding:9px 12px;border:1px solid var(--n200);border-radius:var(--rmd);font-size:14px;font-family:inherit;color:var(--n800);background:#fff}
+.edit-field input:focus,.edit-field select:focus{outline:none;border-color:var(--g400)}
+.edit-modal-btns{display:flex;gap:10px;margin-top:20px}
+.edit-save-btn{flex:1;background:var(--g600);color:#fff;border:none;border-radius:var(--rmd);padding:10px;font-size:14px;font-weight:500;cursor:pointer}
+.edit-save-btn:hover{background:var(--g800)}
+.edit-cancel-btn{flex:1;background:var(--n100);color:var(--n600);border:none;border-radius:var(--rmd);padding:10px;font-size:14px;cursor:pointer}
+.editpenbtn{background:none;border:none;cursor:pointer;font-size:13px;color:var(--n400);padding:3px 6px;border-radius:4px;transition:all .15s}
+.editpenbtn:hover{color:var(--g600);background:var(--g50)}
 </style>
 </head>
 <body>
+
+<!-- Modal de edição -->
+<div id="edit-modal">
+  <div id="edit-modal-box">
+    <h3>&#9998; Editar lançamento</h3>
+    <div class="edit-field"><label>Nome / Descrição</label><input type="text" id="em-name"></div>
+    <div class="edit-field"><label>Data</label><input type="date" id="em-date"></div>
+    <div class="edit-field"><label>Valor (R$)</label><input type="number" id="em-value" min="0" step="0.01"></div>
+    <div class="edit-field" id="em-origem-wrap"><label>Origem</label>
+      <select id="em-origem">
+        <option value="normal">— Sem origem</option>
+        <option value="infinitepay">InfinitePay</option>
+        <option value="itau">Itaú</option>
+        <option value="dinheiro">Dinheiro</option>
+        <option value="reimb-davi">↺ Reembolso Davi</option>
+        <option value="reimb-cleber">↺ Reembolso Cleber</option>
+      </select>
+    </div>
+    <div class="edit-modal-btns">
+      <button class="edit-cancel-btn" id="em-cancel">Cancelar</button>
+      <button class="edit-save-btn" id="em-save">Salvar</button>
+    </div>
+  </div>
+</div>
 
 <div id="login-screen">
   <div class="lb1"></div><div class="lb2"></div>
@@ -448,27 +488,31 @@ function secHTML(m, key, icon, title, ic, vc, total) {
   const sorted = sortByDate(data[m][key]);
   const rows = sorted.map(r => {
     const isReimb = r.reimb === "davi" || r.reimb === "cleber";
+    const contaLabel = r.conta==="infinitepay"?"InfinitePay":r.conta==="itau"?"Ita\u00fa":"Dinheiro";
+    const contaCls = r.conta==="infinitepay"?"orig-infinitepay":r.conta==="itau"?"orig-itau":"orig-dinheiro";
     const origBadge = isReimb
-      ? "<span style=\"font-size:10px;background:#F5F3FF;color:#7C3AED;border-radius:4px;padding:2px 6px;margin-left:4px;\">\u21ba Reemb. "+(r.reimb==="davi"?"Davi":"Cleber")+"</span>"
+      ? "<span class=\"orig-badge orig-reimb\">\u21ba Reemb. "+(r.reimb==="davi"?"Davi":"Cleber")+"</span>"
       : r.conta
-        ? "<span style=\"font-size:10px;border-radius:4px;padding:2px 6px;margin-left:4px;"+(r.conta==="infinitepay"?"background:#F5F3FF;color:#7C3AED":r.conta==="itau"?"background:#FFF7ED;color:#C2410C":"background:#F0FDF4;color:#15803D")+"\">"+(r.conta==="infinitepay"?"InfinitePay":r.conta==="itau"?"Ita\u00fa":"Dinheiro")+"</span>"
+        ? "<span class=\"orig-badge "+contaCls+"\">"+contaLabel+"</span>"
         : "";
     const valorStyle = isReimb ? "text-decoration:line-through;opacity:0.5;" : "";
     return "<tr>" +
       "<td class=\"date-cell\">" + fmtDate(r.date) + "</td>" +
       "<td>" + r.name + origBadge + "</td>" +
-      "<td class=\"ar\"><span class=\"editable " + vc + "\" style=\"" + valorStyle + "\" data-m=\"" + m + "\" data-key=\"" + key + "\" data-i=\"" + r._i + "\">" + brl(r.value) + "</span></td>" +
-      "<td class=\"ar\"><button class=\"delbtn\" data-m=\"" + m + "\" data-key=\"" + key + "\" data-del=\"" + r._i + "\">&#x2715;</button></td>" +
+      "<td class=\"ar\"><span style=\"" + valorStyle + "\">" + brl(r.value) + "</span></td>" +
+      "<td class=\"ar\" style=\"white-space:nowrap\">" +
+        "<button class=\"editpenbtn\" data-edit-m=\"" + m + "\" data-edit-key=\"" + key + "\" data-edit-i=\"" + r._i + "\">&#9998;</button>" +
+        "<button class=\"delbtn\" data-m=\"" + m + "\" data-key=\"" + key + "\" data-del=\"" + r._i + "\">&#x2715;</button>" +
+      "</td>" +
     "</tr>";
   }).join("");
-  const origemSelect = key === "s"
-    ? "<select class=\"owner-select owner-none ainp\" id=\"orig-"+m+"-s\" style=\"width:auto;padding:8px 10px;\">" +
+  const origemSelect = (key === "s" || key === "e")
+    ? "<select class=\"owner-select owner-none ainp\" id=\"orig-"+m+"-"+key+"\" style=\"width:auto;padding:8px 10px;\">" +
         "<option value=\"normal\">\u2014 Sem origem</option>" +
         "<option value=\"infinitepay\">InfinitePay</option>" +
         "<option value=\"itau\">Ita\u00fa</option>" +
         "<option value=\"dinheiro\">Dinheiro</option>" +
-        "<option value=\"reimb-davi\">\u21ba Reembolso Davi</option>" +
-        "<option value=\"reimb-cleber\">\u21ba Reembolso Cleber</option>" +
+        (key === "s" ? "<option value=\"reimb-davi\">\u21ba Reembolso Davi</option><option value=\"reimb-cleber\">\u21ba Reembolso Cleber</option>" : "") +
       "</select>"
     : "";
   return "<div class=\"section\">" +
@@ -485,26 +529,121 @@ function secHTML(m, key, icon, title, ic, vc, total) {
 }
 
 function attachMonthEvents(m) {
-  document.querySelectorAll(".editable").forEach(el => {
-    el.addEventListener("click", function() {
-      const {m,key,i} = this.dataset;
-      const r = data[m][key][parseInt(i)];
-      const v = prompt("Editar valor de \"" + r.name + "\":", r.value);
-      if (v===null) return;
-      const n = parseFloat(v.replace(",","."));
-      if (!isNaN(n)) { data[m][key][parseInt(i)].value = n; scheduleSave(); render(m); }
-    });
+  // usa delegação — os listeners ficam no document, não nos elementos
+}
+
+// Estado do modal
+let _editCtx = null;
+
+function openEditModal(ctx) {
+  _editCtx = ctx;
+  document.getElementById("em-name").value = ctx.name || "";
+  document.getElementById("em-date").value = ctx.date || "";
+  document.getElementById("em-value").value = ctx.value || "";
+  const origWrap = document.getElementById("em-origem-wrap");
+  const origSel = document.getElementById("em-origem");
+  if (ctx.type === "reimb") {
+    // reembolso: sem campo origem, só nome/data/valor
+    origWrap.style.display = "none";
+  } else {
+    origWrap.style.display = "";
+    // remove opções de reembolso se for entrada
+    const reimbOpts = origSel.querySelectorAll("[value^='reimb']");
+    reimbOpts.forEach(o => o.style.display = ctx.key === "s" ? "" : "none");
+    // define origem atual
+    let origVal = "normal";
+    if (ctx.item.reimb === "davi") origVal = "reimb-davi";
+    else if (ctx.item.reimb === "cleber") origVal = "reimb-cleber";
+    else if (ctx.item.conta) origVal = ctx.item.conta;
+    origSel.value = origVal;
+  }
+  document.getElementById("edit-modal").classList.add("open");
+}
+
+function closeEditModal() {
+  document.getElementById("edit-modal").classList.remove("open");
+  _editCtx = null;
+}
+
+function saveEditModal() {
+  if (!_editCtx) return;
+  const name = document.getElementById("em-name").value.trim();
+  const date = document.getElementById("em-date").value;
+  const val = parseFloat(document.getElementById("em-value").value) || 0;
+  if (!name) { document.getElementById("em-name").focus(); return; }
+
+  if (_editCtx.type === "reimb") {
+    const idx = _editCtx.idx;
+    data._reimb[idx].name = name;
+    data._reimb[idx].date = date;
+    data._reimb[idx].value = val;
+    scheduleSave(); closeEditModal(); renderReimb(); return;
+  }
+
+  const {m, key, i} = _editCtx;
+  const item = data[m][key][i];
+  item.name = name;
+  item.date = date;
+  item.value = val;
+
+  // atualiza origem
+  const orig = document.getElementById("em-origem").value;
+  delete item.reimb; delete item.conta;
+  if (orig === "reimb-davi" || orig === "reimb-cleber") {
+    item.reimb = orig === "reimb-davi" ? "davi" : "cleber";
+  } else if (orig !== "normal") {
+    item.conta = orig;
+  }
+
+  scheduleSave(); closeEditModal(); render(m);
+}
+
+// Delegação global de eventos (registrada uma única vez)
+(function() {
+  document.getElementById("em-cancel").addEventListener("click", closeEditModal);
+  document.getElementById("em-save").addEventListener("click", saveEditModal);
+  document.getElementById("edit-modal").addEventListener("click", function(e) {
+    if (e.target === this) closeEditModal();
   });
-  document.querySelectorAll("[data-del]").forEach(el => {
-    el.addEventListener("click", function() {
-      const {m,key} = this.dataset;
-      data[m][key].splice(parseInt(this.dataset.del),1);
+
+  document.addEventListener("click", function(e) {
+    // Botão lápis — itens de mês
+    const penbtn = e.target.closest("[data-edit-m]");
+    if (penbtn) {
+      const m = penbtn.dataset.editM, key = penbtn.dataset.editKey, i = parseInt(penbtn.dataset.editI);
+      const item = data[m][key][i];
+      if (!item) return;
+      openEditModal({type:"item", m, key, i, item, name:item.name, date:item.date, value:item.value});
+      return;
+    }
+    // Botão lápis — reembolso
+    const rpen = e.target.closest("[data-edit-reimb]");
+    if (rpen) {
+      const idx = parseInt(rpen.dataset.editReimb);
+      const item = data._reimb[idx];
+      if (!item) return;
+      openEditModal({type:"reimb", idx, item, name:item.name, date:item.date, value:item.value});
+      return;
+    }
+    // Deletar item
+    const delbtn = e.target.closest("[data-del]");
+    if (delbtn && delbtn.dataset.m) {
+      const {m, key} = delbtn.dataset;
+      data[m][key].splice(parseInt(delbtn.dataset.del), 1);
       scheduleSave(); render(m);
-    });
-  });
-  document.querySelectorAll("[data-add-m]").forEach(el => {
-    el.addEventListener("click", function() {
-      const m=this.dataset.addM, key=this.dataset.addKey;
+      return;
+    }
+    // Deletar reembolso
+    const rdbtn = e.target.closest("[data-rd]");
+    if (rdbtn) {
+      data._reimb.splice(parseInt(rdbtn.dataset.rd), 1);
+      scheduleSave(); renderReimb();
+      return;
+    }
+    // Adicionar item
+    const addbtn = e.target.closest("[data-add-m]");
+    if (addbtn) {
+      const m=addbtn.dataset.addM, key=addbtn.dataset.addKey;
       const di=document.getElementById("d-"+m+"-"+key);
       const ni=document.getElementById("n-"+m+"-"+key);
       const vi=document.getElementById("v-"+m+"-"+key);
@@ -529,24 +668,36 @@ function attachMonthEvents(m) {
           scheduleSave(); render(m); return;
         }
       }
+      if (key==="e") {
+        const origSel=document.getElementById("orig-"+m+"-e");
+        const orig=origSel?origSel.value:"normal";
+        if (orig==="infinitepay"||orig==="itau"||orig==="dinheiro") {
+          data[m][key].push({name,value:val,date,conta:orig});
+          ni.value=""; vi.value=""; if(origSel){origSel.value="normal";origSel.className="owner-select owner-none ainp";origSel.style.width="auto";origSel.style.padding="8px 10px";}
+          scheduleSave(); render(m); return;
+        }
+      }
       data[m][key].push({name,value:val,date});
       ni.value=""; vi.value="";
       scheduleSave(); render(m);
-    });
+      return;
+    }
   });
-  document.querySelectorAll("[id^='orig-']").forEach(sel=>{
-    sel.addEventListener("change",function(){
-      const v=this.value;
-      let cls="owner-select ainp ";
-      if(v==="reimb-davi"||v==="reimb-cleber") cls+="orig-reimb";
-      else if(v==="infinitepay") cls+="orig-infinitepay";
-      else if(v==="itau") cls+="orig-itau";
-      else if(v==="dinheiro") cls+="orig-dinheiro";
-      else cls+="owner-none";
-      this.className=cls; this.style.width="auto"; this.style.padding="8px 10px";
-    });
+
+  // Select de origem — mudança de cor
+  document.addEventListener("change", function(e) {
+    const sel = e.target.closest("[id^='orig-']");
+    if (!sel) return;
+    const v=sel.value;
+    let cls="owner-select ainp ";
+    if(v==="reimb-davi"||v==="reimb-cleber") cls+="orig-reimb";
+    else if(v==="infinitepay") cls+="orig-infinitepay";
+    else if(v==="itau") cls+="orig-itau";
+    else if(v==="dinheiro") cls+="orig-dinheiro";
+    else cls+="owner-none";
+    sel.className=cls; sel.style.width="auto"; sel.style.padding="8px 10px";
   });
-}
+})();
 
 // ANUAL
 function renderAnual() {
@@ -652,7 +803,7 @@ function renderReimb() {
           "<option value=\"sim\"" + (item.pago==="sim"?" selected":"") + ">\u2713 Sim</option>" +
           "<option value=\"nao\"" + (item.pago==="nao"?" selected":"") + ">\u2717 N\u00e3o</option>" +
         "</select></td>" +
-        "<td class=\"ar\"><button class=\"delbtn\" data-rd=\"" + item.origIdx + "\">&#x2715;</button></td>" +
+        "<td class=\"ar\" style=\"white-space:nowrap\"><button class=\"editpenbtn\" data-edit-reimb=\"" + item.origIdx + "\">&#9998;</button><button class=\"delbtn\" data-rd=\"" + item.origIdx + "\">&#x2715;</button></td>" +
       "</tr>";
     }).join("");
     return "<div class=\"month-section\">" +
@@ -765,16 +916,8 @@ function renderValores() {
   const saldos = {infinitepay:0, itau:0, dinheiro:0};
   MONTHS.forEach(m=>{
     if(!data[m]) return;
-    // Entradas: soma todas sem filtro de conta (entram no geral)
-    // Saídas: debita da conta correspondente se tiver origem
-    data[m].s.forEach(x=>{
-      if(x.reimb) return; // reembolso não afeta saldos de conta
-      if(x.conta && saldos[x.conta]!==undefined) saldos[x.conta]-=(+x.value||0);
-    });
-    // Entradas vinculadas a conta (se houver campo conta nas entradas)
-    data[m].e.forEach(x=>{
-      if(x.conta && saldos[x.conta]!==undefined) saldos[x.conta]+=(+x.value||0);
-    });
+    data[m].e.forEach(x=>{ if(x.conta && saldos[x.conta]!==undefined) saldos[x.conta]+=(+x.value||0); });
+    data[m].s.forEach(x=>{ if(x.reimb) return; if(x.conta && saldos[x.conta]!==undefined) saldos[x.conta]-=(+x.value||0); });
   });
   const ip=saldos.infinitepay, it=saldos.itau, din=saldos.dinheiro;
   const geral=getSaldoGeral();
