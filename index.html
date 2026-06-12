@@ -268,6 +268,7 @@ input[type='date'].ainp{color:var(--n900);font-family:'DM Sans',sans-serif}
     <button class="mbtn" id="reimb-d" style="color:#7C3AED;font-weight:500">&#128179; Reembolso</button>
     <button class="mbtn" id="growth-d" style="color:#0891B2;font-weight:500">&#128200; Crescimento</button>
     <button class="mbtn" id="valores-d" style="color:#059669;font-weight:500">&#127970; Valores</button>
+    <button class="mbtn" id="custos-d" style="color:#D97706;font-weight:500">&#128199; Custos Fixos</button>
     <div class="snlabel">Meses</div>
     <div id="dnav"></div>
     <div class="dfooter"><button class="logoutbtn" id="logout-d">&#8592; Sair</button></div>
@@ -281,6 +282,7 @@ input[type='date'].ainp{color:var(--n900);font-family:'DM Sans',sans-serif}
     <button class="mbtn" id="reimb-s" style="color:#7C3AED;font-weight:500">&#128179; Reembolso</button>
     <button class="mbtn" id="growth-s" style="color:#0891B2;font-weight:500">&#128200; Crescimento</button>
     <button class="mbtn" id="valores-s" style="color:#059669;font-weight:500">&#127970; Valores</button>
+    <button class="mbtn" id="custos-s" style="color:#D97706;font-weight:500">&#128199; Custos Fixos</button>
     <div class="snlabel">Meses</div>
     <div id="snav"></div>
     <div class="sfooter"><button class="logoutbtn" id="logout-s">&#8592; Sair</button></div>
@@ -305,7 +307,7 @@ const DI = [{name:"Equipamentos e Tecnologia",value:0,date:""},{name:"Treinament
 function defData() {
   const d = {};
   MONTHS.forEach(m => { d[m] = { e: JSON.parse(JSON.stringify(DE)), s: JSON.parse(JSON.stringify(DS)), i: JSON.parse(JSON.stringify(DI)) }; });
-  d._reimb = []; d._growth = {}; d._valores = {};
+  d._reimb = []; d._growth = {}; d._valores = {}; d._custos = [];
   return d;
 }
 
@@ -315,6 +317,7 @@ function mergeData(loaded) {
   if (loaded._reimb != null) base._reimb = Array.isArray(loaded._reimb) ? loaded._reimb : Object.values(loaded._reimb);
   if (loaded._growth) base._growth = loaded._growth;
   if (loaded._valores) base._valores = loaded._valores;
+  if (loaded._custos != null) base._custos = Array.isArray(loaded._custos) ? loaded._custos : Object.values(loaded._custos);
   return base;
 }
 
@@ -365,6 +368,7 @@ function rerenderActive() {
   else if (active==="_reimb") renderReimb();
   else if (active==="_growth") renderGrowth();
   else if (active==="_valores") renderValores();
+  else if (active==="_custos") renderCustos();
   else render(active);
 }
 
@@ -438,7 +442,7 @@ function setActive(key) {
   active = key;
   document.querySelectorAll(".mbtn").forEach(b => b.classList.remove("active"));
   document.querySelectorAll("[data-m=\""+key+"\"]").forEach(b => b.classList.add("active"));
-  const map = {_anual:["anual-s","anual-d"],_invest:["invest-s","invest-d"],_reimb:["reimb-s","reimb-d"],_growth:["growth-s","growth-d"],_valores:["valores-s","valores-d"]};
+  const map = {_anual:["anual-s","anual-d"],_invest:["invest-s","invest-d"],_reimb:["reimb-s","reimb-d"],_growth:["growth-s","growth-d"],_valores:["valores-s","valores-d"],_custos:["custos-s","custos-d"]};
   (map[key]||[]).forEach(id => { const el=document.getElementById(id); if(el) el.classList.add("active"); });
 }
 
@@ -454,6 +458,8 @@ document.getElementById("growth-s").addEventListener("click", ()=>{ setActive("_
 document.getElementById("growth-d").addEventListener("click", ()=>{ setActive("_growth"); renderGrowth(); closeDrawer(); });
 document.getElementById("valores-s").addEventListener("click",()=>{ setActive("_valores"); renderValores(); });
 document.getElementById("valores-d").addEventListener("click",()=>{ setActive("_valores"); renderValores(); closeDrawer(); });
+document.getElementById("custos-s").addEventListener("click",()=>{ setActive("_custos"); renderCustos(); });
+document.getElementById("custos-d").addEventListener("click",()=>{ setActive("_custos"); renderCustos(); closeDrawer(); });
 
 // MONTH RENDER
 function render(m) {
@@ -542,9 +548,10 @@ function openEditModal(ctx) {
   document.getElementById("em-value").value = ctx.value || "";
   const origWrap = document.getElementById("em-origem-wrap");
   const origSel = document.getElementById("em-origem");
-  if (ctx.type === "reimb") {
-    // reembolso: sem campo origem, só nome/data/valor
+  const dateWrap = document.getElementById("em-date").parentElement;
+  if (ctx.type === "reimb" || ctx.type === "custo") {
     origWrap.style.display = "none";
+    dateWrap.style.display = ctx.type === "custo" ? "none" : "";
   } else {
     origWrap.style.display = "";
     // remove opções de reembolso se for entrada
@@ -578,6 +585,12 @@ function saveEditModal() {
     data._reimb[idx].date = date;
     data._reimb[idx].value = val;
     scheduleSave(); closeEditModal(); renderReimb(); return;
+  }
+  if (_editCtx.type === "custo") {
+    const idx = _editCtx.idx;
+    data._custos[idx].name = name;
+    data._custos[idx].value = val;
+    scheduleSave(); closeEditModal(); renderAnual(); return;
   }
 
   const {m, key, i} = _editCtx;
@@ -623,6 +636,22 @@ function saveEditModal() {
       const item = data._reimb[idx];
       if (!item) return;
       openEditModal({type:"reimb", idx, item, name:item.name, date:item.date, value:item.value});
+      return;
+    }
+    // Botão lápis — custo fixo
+    const cpen = e.target.closest("[data-edit-custo]");
+    if (cpen) {
+      const idx = parseInt(cpen.dataset.editCusto);
+      const item = data._custos[idx];
+      if (!item) return;
+      openEditModal({type:"custo", idx, item, name:item.name, date:"", value:item.value});
+      return;
+    }
+    // Deletar custo fixo
+    const cdel = e.target.closest("[data-del-custo]");
+    if (cdel) {
+      data._custos.splice(parseInt(cdel.dataset.delCusto), 1);
+      scheduleSave(); renderAnual();
       return;
     }
     // Deletar item
@@ -712,6 +741,7 @@ function renderAnual() {
   }).filter(Boolean);
   const tot=tE-tS;
   const trs=rows.map(r=>"<tr><td style=\"font-weight:500\">" + r.m + "</td><td class=\"ar vg\">" + brl(r.e) + "</td><td class=\"ar vd\">" + brl(r.s) + "</td><td class=\"ar vw\">" + brl(r.i) + "</td><td class=\"ar\" style=\"font-weight:500;color:" + (r.saldo>=0?"var(--g600)":"var(--danger)") + "\">" + brl(r.saldo) + "</td></tr>").join("");
+
   document.getElementById("main").innerHTML =
     "<div class=\"anim\"><div class=\"ptitle\">Resumo <span>2026</span></div><div class=\"phint\">Consolidado de todos os meses</div></div>" +
     "<div class=\"sumrow anim a1\" style=\"grid-template-columns:repeat(2,1fr) 1fr 1fr\">" +
@@ -909,6 +939,49 @@ function getSaldoGeral() {
   let tE=0,tS=0;
   MONTHS.forEach(m=>{ if(!data[m])return; tE+=data[m].e.reduce((a,x)=>a+(+x.value||0),0); tS+=data[m].s.reduce((a,x)=>x.reimb?a:a+(+x.value||0),0); });
   return tE-tS;
+}
+
+function renderCustos() {
+  if (!data._custos) data._custos = [];
+  const custos = data._custos;
+  const totalCustos = custos.reduce((a,x)=>a+(+x.value||0),0);
+  const custosRows = custos.map((c,i)=>
+    "<tr>" +
+      "<td>" + c.name + "</td>" +
+      "<td class=\"ar\">" + brl(c.value) + "</td>" +
+      "<td class=\"ar\" style=\"white-space:nowrap\">" +
+        "<button class=\"editpenbtn\" data-edit-custo=\"" + i + "\">&#9998;</button>" +
+        "<button class=\"delbtn\" data-del-custo=\"" + i + "\">&#x2715;</button>" +
+      "</td>" +
+    "</tr>"
+  ).join("");
+
+  document.getElementById("main").innerHTML =
+    "<div class=\"anim\"><div class=\"ptitle\" style=\"color:#D97706\">&#128199; Custos Fixos</div><div class=\"phint\">Despesas mensais recorrentes da empresa</div></div>" +
+    "<div class=\"sumrow anim a1\">" +
+      "<div class=\"scard\"><div class=\"sacc\" style=\"background:#D97706\"></div><div class=\"slabel\">Total Mensal</div><div class=\"sval\" style=\"color:#D97706\">" + brl(totalCustos) + "</div></div>" +
+      "<div class=\"scard\"><div class=\"sacc\" style=\"background:#D97706\"></div><div class=\"slabel\">Total Anual</div><div class=\"sval\" style=\"color:#D97706\">" + brl(totalCustos*12) + "</div></div>" +
+    "</div>" +
+    "<div class=\"section anim a2\">" +
+      "<div class=\"sechdr\"><div class=\"sectitle\"><div class=\"secico\" style=\"background:#FEF3C7\">&#128199;</div>Lista de Custos</div><div class=\"sectot\" style=\"color:#D97706\">" + brl(totalCustos) + "/m\u00eas</div></div>" +
+      "<table class=\"etable\"><thead><tr><th>Descri\u00e7\u00e3o</th><th style=\"text-align:right\">Valor mensal</th><th style=\"width:80px\"></th></tr></thead><tbody>" +
+      (custosRows || "<tr><td colspan=\"3\" style=\"text-align:center;color:var(--n400);padding:20px\">Nenhum custo fixo cadastrado</td></tr>") +
+      "</tbody></table>" +
+      "<div class=\"addrow\">" +
+        "<input class=\"ainp wide\" type=\"text\" placeholder=\"Ex: Aluguel, Contador, Internet...\" id=\"custo-name\">" +
+        "<input class=\"ainp num\" type=\"number\" placeholder=\"R$ 0,00\" id=\"custo-value\" min=\"0\" step=\"0.01\">" +
+        "<button class=\"addbtn\" id=\"custo-add\">+ Adicionar</button>" +
+      "</div>" +
+    "</div>";
+
+  document.getElementById("custo-add").addEventListener("click", () => {
+    const name = document.getElementById("custo-name").value.trim();
+    const val = parseFloat(document.getElementById("custo-value").value) || 0;
+    if (!name) { document.getElementById("custo-name").focus(); return; }
+    if (!data._custos) data._custos = [];
+    data._custos.push({name, value: val});
+    scheduleSave(); renderCustos();
+  });
 }
 
 function renderValores() {
